@@ -12,6 +12,7 @@ type RegisterInput struct {
 	LastName  string `json:"last_name"`
 	Email     string `json:"email"`
 	Password  string `json:"password"`
+	Username  string `json:"username"`
 }
 
 func Register(c *fiber.Ctx) error {
@@ -36,6 +37,7 @@ func Register(c *fiber.Ctx) error {
 		FirstName:      input.FirstName,
 		LastName:       input.LastName,
 		Email:          input.Email,
+		Username:       input.Username,
 		HashedPassword: string(hashedPassword),
 	}
 
