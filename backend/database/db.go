@@ -1,50 +1,23 @@
-package database
+package database 
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
-	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-var DB *pgxpool.Pool
+var DB *gorm.DB
 
-func Connect() {
-	// Load env file
-	err := godotenv.Load()
+func ConnectDatabase() {
+	dsn := os.Getenv("DATABASE_URL") // Make sure this is in your .env file
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Println("No .env file found, reading environment variables directly")
+		log.Fatalf("❌ Failed to connect to database: %v", err)
 	}
 
-	dbUrl := os.Getenv("DATABASE_URL")
-	if dbUrl == "" {
-		log.Fatal("DATABASE_URL not set in environment")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	pool, err := pgxpool.New(ctx, dbUrl)
-	if err != nil {
-		log.Fatalf("Unable to connect to database: %v\n", err)
-	}
-
-	// Test the connection
-	err = pool.Ping(ctx)
-	if err != nil {
-		log.Fatalf("Unable to ping database: %v\n", err)
-	}
-
-	DB = pool
-	fmt.Println("✅ Connected to PostgreSQL")
-}
-
-func Close() {
-	if DB != nil {
-		DB.Close()
-	}
+	DB = db
+	fmt.Println("✅ Connected to the database")
 }
