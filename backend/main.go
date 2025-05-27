@@ -24,12 +24,14 @@ func main() {
 	database.ConnectDatabase()
 	//initliasing a new fiber app
 	app := fiber.New()
+	api := app.Group("/api")
 	//route setup
-	routes.SetupRoutes(app)
+	routes.SetupAuthRoutes(api)
+	routes.SetupUserRoutes(api)
 	//running app
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "3000"
+		port = "4000"
 	}
 	//running the app
 	fmt.Printf("🚀 Server listening on port %s\n", port)

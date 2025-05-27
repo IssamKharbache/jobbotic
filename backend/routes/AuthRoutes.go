@@ -5,9 +5,10 @@ import (
 	"jobbotic-backend/handlers"
 )
 
-func SetupRoutes(app *fiber.App) {
-	api := app.Group("/api")
-	auth := api.Group("/auth")
+func SetupAuthRoutes(router fiber.Router) {
+	//auth group route
+	auth := router.Group("/auth")
 
 	auth.Post("/register", handlers.Register)
+	auth.Post("/login", handlers.Login)
 }
