@@ -1,9 +1,0 @@
-
-#r# Register user
-POST http://localhost:4000/api/auth/login
-Content-Type: application/json
-
-{
-    "email":"issam@gmail.com",
-    "password":"issamh7"
-}
