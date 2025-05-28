@@ -48,8 +48,8 @@ func Register(c *fiber.Ctx) error {
 		FirstName:      registerData.FirstName,
 		LastName:       registerData.LastName,
 		Email:          lowerCaseEmail,
-		Username:       registerData.Username,
 		HashedPassword: string(hashedPassword),
+		IsGmailLinked:  false,
 	}
 
 	if err := database.DB.Create(&user).Error; err != nil {
