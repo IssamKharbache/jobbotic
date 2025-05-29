@@ -24,6 +24,11 @@ func ConnectDatabase() {
 	if err != nil {
 		log.Fatalf("❌ Failed to migrate database: %v", err)
 	}
+	//Auto migrate GmailAccount  struct to create gmails tables if not exist
+	err = db.AutoMigrate(&models.GmailAccount{})
+	if err != nil {
+		log.Fatalf("❌ Failed to migrate database: %v", err)
+	}
 	DB = db
 	fmt.Println("✅ Connected to the database with GORM")
 }

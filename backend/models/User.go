@@ -12,6 +12,7 @@ type User struct {
 	GoogleRefreshToken string    `json:"-"`
 	TokenExpiry        time.Time `json:"-"`
 	IsGmailLinked      bool      `json:"-"`
+	LinkedEmail        string    `json:"linked_email" gorm:"uniqueIndex;"`
 	CreatedAt          time.Time `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt          time.Time `json:"updatedAt" gorm:"autoCreateTime"`
 }

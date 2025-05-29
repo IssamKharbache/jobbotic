@@ -1,16 +1,13 @@
-
 package handlers
 
 import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"jobbotic-backend/database"
 	"jobbotic-backend/models"
 	"jobbotic-backend/utils"
-	"math/rand"
-	"net/url"
+	"net/http"
 	"os"
 	"time"
 
@@ -19,6 +16,12 @@ import (
 	"golang.org/x/oauth2/google"
 	"gorm.io/gorm"
 )
+
+func GoogleLogin(c *fiber.Ctx) error {
+	state := utils.GenerateState() // Generate a random state for CSRF protection
+	url := GetGoogleOauthConfig().AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"))
+	return c.Redirect(url)
+}
 
 // OAuth config
 func GetGoogleOauthConfig() *oauth2.Config {
@@ -33,19 +36,6 @@ func GetGoogleOauthConfig() *oauth2.Config {
 		},
 		Endpoint: google.Endpoint,
 	}
-}
-
-// Redirect to Google login for signup
-func GoogleLogin(c *fiber.Ctx) error {
-	state := generateState() // random fallback if not using frontend state
-	c.Cookie(&fiber.Cookie{
-		Name:     "oauthstate",
-		Value:    state,
-		Expires:  time.Now().Add(1 * time.Hour),
-		HTTPOnly: true,
-	})
-	url := GetGoogleOauthConfig().AuthCodeURL(state, oauth2.AccessTypeOffline)
-	return c.Redirect(url)
 }
 
 // Google Signup/Login Callback
@@ -66,12 +56,6 @@ func GoogleCallback(c *fiber.Ctx) error {
 	}
 	if err := json.Unmarshal(decodedState, &stateData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid state format"})
-	}
-
-	// Validate JWT
-	claims, err := utils.ValidateToken(stateData.Token)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid or expired token"})
 	}
 
 	code := c.Query("code")
@@ -144,59 +128,166 @@ func GoogleCallback(c *fiber.Ctx) error {
 
 // Generate Gmail Link URL
 func GoogleLink(c *fiber.Ctx) error {
-	state := c.Query("state")
-	if state == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Missing state"})
+	userIDVal := c.Locals("userID")
+	userID, ok := userIDVal.(string)
+	if !ok || userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "User ID not found in context or invalid",
+		})
 	}
+	state := utils.GenerateStateWithUserID(userID)
+	authURL := GetGoogleOauthConfig().AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"))
 
-	authURL := fmt.Sprintf(
-		"https://accounts.google.com/o/oauth2/auth?access_type=offline&client_id=%s&prompt=consent&redirect_uri=%s&response_type=code&scope=%s&state=%s",
-		os.Getenv("GOOGLE_CLIENT_ID"),
-		url.QueryEscape(os.Getenv("GOOGLE_REDIRECT_URL")+"/link"),
-		url.QueryEscape("https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/gmail.readonly"),
-		state,
-	)
-
-	return c.JSON(fiber.Map{"url": authURL})
+	return c.JSON(fiber.Map{
+		"url": authURL,
+	})
 }
 
 // Gmail Link Callback
+
 func GoogleLinkCallback(c *fiber.Ctx) error {
-	userID, ok := c.Locals("user_id").(uint)
-	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	state := c.Query("state")
+	if state == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Missing state parameter",
+		})
+	}
+
+	decodedBytes, err := base64.URLEncoding.DecodeString(state)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid state encoding",
+		})
+	}
+
+	var stateData map[string]string
+	if err := json.Unmarshal(decodedBytes, &stateData); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid state format",
+		})
+	}
+
+	userID := stateData["uid"]
+	if userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Missing user ID in state",
+		})
 	}
 
 	code := c.Query("code")
+	if code == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"error": "Missing authorization code",
+		})
+	}
+
+	// Exchange code for token
 	token, err := GetGoogleOauthConfig().Exchange(context.Background(), code)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to exchange token"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to exchange code for token",
+		})
 	}
 
-	db := database.DB
+	// Fetch user's Gmail address
+	client := GetGoogleOauthConfig().Client(context.Background(), token)
+	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
+	if err != nil || resp.StatusCode != 200 {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get user info from Google",
+		})
+	}
+	defer resp.Body.Close()
+
+	var googleUser struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&googleUser); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to decode Google user info",
+		})
+	}
+
+	// Fetch user from DB
 	var user models.User
-	if err := db.First(&user, userID).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
+	if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "User not found",
+		})
 	}
 
-	user.GoogleAccessToken = token.AccessToken
-	user.GoogleRefreshToken = token.RefreshToken
-	user.TokenExpiry = token.Expiry
+	// ✅ Update User basic flags
 	user.IsGmailLinked = true
-
-	if err := db.Save(&user).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save tokens"})
+	user.LinkedEmail = googleUser.Email // optional field in User
+	if err := database.DB.Save(&user).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to update user info",
+		})
 	}
 
-	return c.JSON(fiber.Map{"message": "Gmail successfully linked!"})
+	// ✅ Create or update GmailAccount record
+	gmailAccount := models.GmailAccount{
+		UserID:             user.ID,
+		Email:              googleUser.Email,
+		GoogleAccessToken:  token.AccessToken,
+		GoogleRefreshToken: token.RefreshToken,
+		TokenExpiry:        token.Expiry,
+	}
+
+	// Check if Gmail account already exists
+	var existing models.GmailAccount
+	err = database.DB.Where("email = ?", googleUser.Email).First(&existing).Error
+	if err == nil {
+		// Update existing
+		existing.GoogleAccessToken = token.AccessToken
+		existing.GoogleRefreshToken = token.RefreshToken
+		existing.TokenExpiry = token.Expiry
+		database.DB.Save(&existing)
+	} else {
+		// Create new
+		database.DB.Create(&gmailAccount)
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Gmail linked successfully",
+	})
 }
 
-// Helper
-func generateState() string {
-	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-	b := make([]rune, 16)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+func GetValidAccessToken(account *models.GmailAccount) (string, error) {
+	if time.Now().Before(account.TokenExpiry) {
+		return account.GoogleAccessToken, nil
 	}
-	return string(b)
+
+	config := GetGoogleOauthConfig()
+	token := &oauth2.Token{
+		RefreshToken: account.GoogleRefreshToken,
+	}
+	tokenSource := config.TokenSource(context.Background(), token)
+	newToken, err := tokenSource.Token()
+	if err != nil {
+		return "", err
+	}
+
+	// Update DB
+	account.GoogleAccessToken = newToken.AccessToken
+	account.TokenExpiry = newToken.Expiry
+	database.DB.Save(account)
+
+	return newToken.AccessToken, nil
+}
+
+func TestAccessToken(c *fiber.Ctx) error {
+	userID := c.Params("id") // or get from auth session
+	var account models.GmailAccount
+	err := database.DB.Where("user_id = ?", userID).First(&account).Error
+	if err != nil {
+		return c.Status(404).SendString("Gmail account not found")
+	}
+
+	token, err := GetValidAccessToken(&account)
+	if err != nil {
+		return c.Status(500).SendString("Error: " + err.Error())
+	}
+
+	return c.SendString("Access Token: " + token)
 }
