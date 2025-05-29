@@ -20,25 +20,22 @@ const LoginForm = () => {
             console.log(error);
         }
     };
-    const handleLinkGoogle = async () => {
-        const token = localStorage.getItem("token"); // or however you store your JWT
-        try {
-            const res = await axios.get(
-                "http://localhost:4000/api/auth/google/link",
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                },
-            );
-            const { authUrl } = res.data;
-            // Now redirect the browser manually
-            window.location.href = authUrl;
-        } catch (error) {
-            console.log(error);
-        }
-    };
 
+const handleLinkGoogle = async () => {
+
+// Example TypeScript/JavaScript logic
+const token = localStorage.getItem("jwtToken"); // or however you store it
+const state = btoa(JSON.stringify({ token }));
+
+// Call your backend to get the Google link URL
+const res = await fetch(`http://localhost:4000/api/auth/google/link?state=${state}`);
+
+
+const { url } = await res.json();
+
+// Redirect the user to Google
+window.location.href = url;
+};
     return (
         <div>
             <form>

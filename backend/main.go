@@ -28,6 +28,7 @@ func main() {
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "http://localhost:5173", // React dev server
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+        AllowCredentials : true,
 	}))
 	api := app.Group("/api")
 	//route setup

@@ -1,3 +1,4 @@
+
 package routes
 
 import (
@@ -10,13 +11,15 @@ import (
 func SetupAuthRoutes(router fiber.Router) {
 	auth := router.Group("/auth")
 
+	// Public routes
 	auth.Post("/register", handlers.Register)
 	auth.Post("/login", handlers.Login)
-	// Google OAuth
-	auth.Get("/google/login", handlers.GoogleLogin)     // Redirects to Google
-	auth.Get("/google/callback", handlers.GoogleSignup) // Handles callback and signup/login
 
-	auth.Use(middleware.RequireAuth) // Protect routes below this line
-	auth.Get("/google/link", handlers.GoogleLink)
-	auth.Get("/google/callback/link", handlers.GoogleLinkCallback)
+	// Google OAuth Signup/Login
+	auth.Get("/google/login", handlers.GoogleLogin)       // Redirect to Google login
+	auth.Get("/google/callback", handlers.GoogleCallback) // Callback with JWT in state
+
+	// Gmail linking (requires frontend to generate state with JWT)
+	auth.Get("/google/link", handlers.GoogleLink)                 // Returns Google OAuth URL
+	auth.Get("/google/callback/link", middleware.RequireAuth, handlers.GoogleLinkCallback) // Handles linking
 }
