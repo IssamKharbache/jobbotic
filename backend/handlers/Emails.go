@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"jobbotic-backend/database"
 	"jobbotic-backend/models"
 	"jobbotic-backend/utils/emails"
 	"net/http"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/oauth2"
@@ -12,6 +15,7 @@ import (
 
 func FetchEmails(c *fiber.Ctx) error {
 	userID := c.Params("id")
+	fmt.Println("USer id :", userID)
 	if userID == "" {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing user id"})
 	}
@@ -27,15 +31,16 @@ func FetchEmails(c *fiber.Ctx) error {
 		RefreshToken: user.GoogleRefreshToken,
 		Expiry:       user.TokenExpiry,
 	}
-
-	ctx := c.Context()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	config := GetGoogleOauthConfig()
+
 	ts := config.TokenSource(ctx, token)
 	newToken, err := ts.Token()
 	if err != nil {
+		fmt.Println("Token refresh error:", err)
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "failed to refresh token"})
 	}
-
 	// If token updated, save it back
 	if newToken.AccessToken != user.GoogleAccessToken {
 		user.GoogleAccessToken = newToken.AccessToken
