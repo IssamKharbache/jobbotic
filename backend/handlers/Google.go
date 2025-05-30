@@ -219,6 +219,8 @@ func GoogleLinkCallback(c *fiber.Ctx) error {
 	// ✅ Update User basic flags
 	user.IsGmailLinked = true
 	user.LinkedEmail = googleUser.Email // optional field in User
+    user.GoogleAccessToken =  token.AccessToken
+    user.GoogleRefreshToken = token.RefreshToken
 	if err := database.DB.Save(&user).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to update user info",

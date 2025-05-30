@@ -1,3 +1,4 @@
+
 package handlers
 
 import (
@@ -13,46 +14,71 @@ import (
 	"golang.org/x/oauth2"
 )
 
+
+
 func FetchEmails(c *fiber.Ctx) error {
-	userID := c.Params("id")
-	fmt.Println("USer id :", userID)
-	if userID == "" {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing user id"})
-	}
+    fmt.Println("Fetch emails handler triggered")
+    userID := c.Params("id")
+    if userID == "" {
+        return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing user id"})
+    }
 
-	var user models.User
-	if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
-		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
-	}
+    var gmailAccount models.GmailAccount
+    if err := database.DB.First(&gmailAccount, "user_id = ?", userID).Error; err != nil {
+        return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "gmail account not found"})
+    }
 
-	// Check if access token expired, if yes refresh it
-	token := &oauth2.Token{
-		AccessToken:  user.GoogleAccessToken,
-		RefreshToken: user.GoogleRefreshToken,
-		Expiry:       user.TokenExpiry,
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	config := GetGoogleOauthConfig()
+    token := &oauth2.Token{
+        AccessToken:  gmailAccount.GoogleAccessToken,
+        RefreshToken: gmailAccount.GoogleRefreshToken,
+        Expiry:       gmailAccount.TokenExpiry,
+    }
 
-	ts := config.TokenSource(ctx, token)
-	newToken, err := ts.Token()
-	if err != nil {
-		fmt.Println("Token refresh error:", err)
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "failed to refresh token"})
-	}
-	// If token updated, save it back
-	if newToken.AccessToken != user.GoogleAccessToken {
-		user.GoogleAccessToken = newToken.AccessToken
-		user.TokenExpiry = newToken.Expiry
-		database.DB.Save(&user)
-	}
+    ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+    defer cancel()
 
-	// Use the valid access token to call Gmail API
-	emailData, err := emails.FetchEmailsHelper(newToken.AccessToken)
-	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
+    config := GetGoogleOauthConfig()
+    ts := config.TokenSource(ctx, token)
+    newToken, err := ts.Token()
+    if err != nil {
+        return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "failed to refresh token"})
+    }
 
-	return c.Send(emailData)
+    if newToken.AccessToken != gmailAccount.GoogleAccessToken {
+        gmailAccount.GoogleAccessToken = newToken.AccessToken
+        gmailAccount.TokenExpiry = newToken.Expiry
+        if err := database.DB.Save(&gmailAccount).Error; err != nil {
+            fmt.Println("Failed to update GmailAccount:", err)
+        }
+    }
+fmt.Println("start fetching ")
+    // 1. fetch list of message IDs
+    emailListData, err := emails.FetchEmailsHelper(newToken.AccessToken)
+    if err != nil {
+        return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+    }
+
+    // 2. fetch details for each message
+    var detailedMessages []emails.MessageDetail
+
+messages := emailListData.Messages
+if len(messages) > 5 {
+    messages = messages[:5] // ✅ this is valid Go syntax
+}
+fmt.Println("Fetched email list, total:", len(emailListData.Messages))
+    for _, msg := range messages.Messages {
+        detail, err := emails.FetchMessageDetails(newToken.AccessToken, msg.Id)
+        if err != nil {
+            fmt.Println("Failed to fetch message details for", msg.Id, ":", err)
+            continue
+        }
+        detailedMessages = append(detailedMessages, *detail)
+    }
+
+    // 3. return the detailed messages, not just IDs
+    return c.JSON(fiber.Map{
+        "messages": detailedMessages,
+        "nextPageToken": emailListData.NextPageToken,
+        "resultSizeEstimate": emailListData.ResultSizeEstimate,
+    })
 }
