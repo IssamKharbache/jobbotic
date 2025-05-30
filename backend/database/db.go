@@ -18,14 +18,7 @@ func ConnectDatabase() {
 	if err != nil {
 		log.Fatalf("❌ Failed to connect to database: %v", err)
 	}
-
-	// Auto migrate User struct to create "users" table if not exist
-	err = db.AutoMigrate(&models.User{})
-	if err != nil {
-		log.Fatalf("❌ Failed to migrate database: %v", err)
-	}
-	//Auto migrate GmailAccount  struct to create gmails tables if not exist
-	err = db.AutoMigrate(&models.GmailAccount{})
+	err = db.AutoMigrate(&models.User{}, &models.GmailAccount{}, &models.JobApplication{})
 	if err != nil {
 		log.Fatalf("❌ Failed to migrate database: %v", err)
 	}
