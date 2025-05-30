@@ -13,6 +13,14 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type FormattedEmail struct {
+	ID      string `json:"id"`
+	Subject string `json:"subject"`
+	From    string `json:"from"`
+	To      string `json:"to"`
+	Body    string `json:"body"`
+}
+
 func FetchEmails(c *fiber.Ctx) error {
 	fmt.Println("Fetch emails handler triggered")
 	userID := c.Params("id")
@@ -34,7 +42,7 @@ func FetchEmails(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
 
-	config := GetGoogleOauthConfig()
+	config := GetGoogleOauthConfig() // make sure you have this function returning *oauth2.Config
 	ts := config.TokenSource(ctx, token)
 	newToken, err := ts.Token()
 	if err != nil {
@@ -48,42 +56,50 @@ func FetchEmails(c *fiber.Ctx) error {
 			fmt.Println("Failed to update GmailAccount:", err)
 		}
 	}
+
 	fmt.Println("start fetching ")
-	// 1. fetch list of message IDs
+
 	emailListData, err := emails.FetchEmailsHelper(newToken.AccessToken)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// 2. fetch details for each message
-	var detailedMessages []emails.MessageDetail
-
+	var formattedEmails []FormattedEmail
 	messages := emailListData.Messages
 	if len(messages) > 5 {
 		messages = messages[:5]
 	}
 
-	//looping through emails and saving them to the database
 	for _, msg := range messages {
-		detail, err := emails.FetchMessageDetails(newToken.AccessToken, msg.Id)
+		gmailMsg, err := emails.FetchMessageDetails(newToken.AccessToken, msg.Id)
 		if err != nil {
 			fmt.Println("Failed to fetch message details for", msg.Id, ":", err)
 			continue
 		}
+		subject, from, to, body := emails.ExtractEmailDetails(gmailMsg)
+		formattedEmails = append(formattedEmails, FormattedEmail{
+			ID:      gmailMsg.Id,
+			Subject: subject,
+			From:    from,
+			To:      to,
+			Body:    body,
+		})
+		if emails.IsJobApplicationEmail(subject, body) {
+			jobApp := models.JobApplication{
+				UserID:  userID, // <- make sure you have this in context
+				EmailID: msg.Id,
+				Subject: subject,
+				From:    from,
+				To:      to,
+				Snippet: body,
+				Date:    time.Now(), // or use msg.InternalDate if available
+			}
 
-	subject, from, to, body := emails.ExtractEmailDetails(detail)
-	formatted := {
-		ID:      detail.Id,
-		Subject: subject,
-		From:    from,
-		To:      to,
-		Body:    body,
+			database.DB.Create(&jobApp)
+		}
 	}
-	detailedMessages = append(detailedMessages, formatted)
-	}
-	// 3. return the detailed messages, not just IDs
 	return c.JSON(fiber.Map{
-		"messages":           detailedMessages,
+		"messages":           formattedEmails,
 		"nextPageToken":      emailListData.NextPageToken,
 		"resultSizeEstimate": emailListData.ResultSizeEstimate,
 	})

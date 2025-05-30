@@ -5,8 +5,8 @@ import (
 )
 
 type JobApplication struct {
-	ID        uint   `gorm:"primaryKey"`
-	UserID    uint   `gorm:"not null"`             // Foreign key to the user
+	ID        string `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	UserID    string `gorm:"not null"`             // Foreign key to the user
 	EmailID   string `gorm:"uniqueIndex;not null"` // Gmail message ID
 	Subject   string
 	From      string
