@@ -2,28 +2,28 @@
 import { motion } from "framer-motion";
 
 const JobboticLogo = () => {
-    // Wave path variations
+    // More fluid wave paths
     const wavePaths = [
-        "M0,8 C30,0 60,16 90,8 C120,0 150,16 180,8 C190,6 200,12 200,8",
-        "M0,8 C30,16 60,0 90,8 C120,16 150,0 180,8 C190,12 200,4 200,8",
-        "M0,8 C15,2 45,14 75,8 C105,2 135,14 165,8 C175,6 200,12 200,8",
+        "M0,8 C25,0 75,16 100,8 C125,0 175,16 200,8",
+        "M0,8 C25,16 75,0 100,8 C125,16 175,0 200,8",
+        "M0,8 C20,4 80,12 100,8 C120,4 180,12 200,8",
     ];
 
     return (
-        <div className="inline-block">
+        <div className="">
             {/* Text Logo */}
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-extrabold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 bg-clip-text text-transparent drop-shadow-sm">
                 Jobbotic
             </h1>
 
             {/* Animated Wavy Underline */}
-            <div className="relative h-5 w-[100%]">
+            <div className="relative h-6 w-full">
                 <motion.svg
                     width="100%"
-                    height="30"
+                    height="36"
                     viewBox="0 0 200 16"
                     preserveAspectRatio="none"
-                    className="absolute -bottom-1"
+                    className="absolute bottom-0 left-0"
                 >
                     <motion.path
                         initial={{ d: wavePaths[0] }}
@@ -31,13 +31,13 @@ const JobboticLogo = () => {
                             d: wavePaths,
                         }}
                         transition={{
-                            duration: 15,
+                            duration: 6,
                             repeat: Infinity,
                             repeatType: "reverse",
                             ease: "easeInOut",
                         }}
                         stroke="url(#waveGradient)"
-                        strokeWidth="1.5"
+                        strokeWidth="2.5"
                         fill="none"
                         strokeLinecap="round"
                     />
