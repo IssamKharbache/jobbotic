@@ -42,13 +42,14 @@ func FetchEmails(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
 
-	config := GetGoogleOauthConfig() // make sure you have this function returning *oauth2.Config
+	config := GetGoogleOauthConfig()
 	ts := config.TokenSource(ctx, token)
+	//refresh the token
 	newToken, err := ts.Token()
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "failed to refresh token"})
 	}
-
+	//saving the new refreshed token
 	if newToken.AccessToken != gmailAccount.GoogleAccessToken {
 		gmailAccount.GoogleAccessToken = newToken.AccessToken
 		gmailAccount.TokenExpiry = newToken.Expiry
@@ -58,17 +59,14 @@ func FetchEmails(c *fiber.Ctx) error {
 	}
 
 	fmt.Println("start fetching ")
-
+	//fetch emails
 	emailListData, err := emails.FetchEmailsHelper(newToken.AccessToken)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-
+	//formatting emails
 	var formattedEmails []FormattedEmail
 	messages := emailListData.Messages
-	if len(messages) > 5 {
-		messages = messages[:5]
-	}
 
 	for _, msg := range messages {
 		gmailMsg, err := emails.FetchMessageDetails(newToken.AccessToken, msg.Id)
@@ -86,13 +84,13 @@ func FetchEmails(c *fiber.Ctx) error {
 		})
 		if emails.IsJobApplicationEmail(subject, body) {
 			jobApp := models.JobApplication{
-				UserID:  userID, // <- make sure you have this in context
+				UserID:  userID,
 				EmailID: msg.Id,
 				Subject: subject,
 				From:    from,
 				To:      to,
 				Snippet: body,
-				Date:    time.Now(), // or use msg.InternalDate if available
+				Date:    time.Now(),
 			}
 
 			database.DB.Create(&jobApp)
