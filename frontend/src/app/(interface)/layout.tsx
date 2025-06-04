@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import "../globals.css";
 import Navbar from "@/components/navbar/Navbar";
-
+import { Toaster } from "@/components/ui/sonner";
 const geistSans = Geist({
     variable: "--font-geist-sans",
     subsets: ["latin"],
@@ -33,8 +33,9 @@ export default function InterfaceLayout({
             <body
                 className={`${geistSans.variable} ${geistMono.variable} ${roboto.className} antialiased`}
             >
+                <Toaster position="top-right" />
                 <Navbar />
-                <div className="max-w-7xl mx-auto">{children}</div>
+                <div>{children}</div>
             </body>
         </html>
     );
