@@ -26,7 +26,7 @@ func main() {
 	//initliasing a new fiber app
 	app := fiber.New()
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:5173", // React dev server
+		AllowOrigins:     os.Getenv("FRONTEND_URL"), // React dev server
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 		AllowCredentials: true,
 	}))

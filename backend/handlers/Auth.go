@@ -30,7 +30,6 @@ func Register(c *fiber.Ctx) error {
 	if err := c.BodyParser(&registerData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid registerData"})
 	}
-
 	lowerCaseEmail := strings.ToLower(registerData.Email)
 	// Check if email already exists
 	var existingUser models.User
@@ -53,7 +52,7 @@ func Register(c *fiber.Ctx) error {
 	}
 
 	if err := database.DB.Create(&user).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create user"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err})
 	}
 
 	return c.JSON(fiber.Map{"message": "User registered successfully"})
