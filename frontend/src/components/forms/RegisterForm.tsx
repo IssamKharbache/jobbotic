@@ -36,9 +36,9 @@ const RegisterForm = () => {
         },
     });
 
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     const handleSubmit = async (data: registerType) => {
         setLoading(true);
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
         try {
             const response = await axios.post(
                 `${backendUrl}/auth/register`,
@@ -82,6 +82,14 @@ const RegisterForm = () => {
             } else {
                 console.log("Error", axiosError.message);
             }
+        }
+    };
+    const googleSignup = async () => {
+        try {
+            const res = await axios.get(`${backendUrl}/auth/google/login`);
+            console.log(res);
+        } catch (error) {
+            console.log(error);
         }
     };
     return (
@@ -145,7 +153,10 @@ const RegisterForm = () => {
                     <p className="text-center ">OR</p>
                     <p>------</p>
                 </div>
-                <Button className="flex items-center gap-5 w-full">
+                <Button
+                    onClick={googleSignup}
+                    className="flex items-center gap-5 w-full"
+                >
                     Continue with Google
                     <FcGoogle />
                 </Button>
