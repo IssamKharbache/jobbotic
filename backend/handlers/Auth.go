@@ -5,6 +5,7 @@ import (
 	"jobbotic-backend/models"
 	"jobbotic-backend/utils"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -96,5 +97,22 @@ func Login(c *fiber.Ctx) error {
 		"user":    user,
 		"message": "Logged in successful",
 		"token":   token,
+	})
+}
+
+func Logout(c *fiber.Ctx) error {
+	// Match the exact attributes used when the cookie was set
+	c.Cookie(&fiber.Cookie{
+		Name:     "token",
+		Value:    "",
+		Expires:  time.Now().Add(-1 * time.Hour), // set in the past
+		HTTPOnly: true,
+		Secure:   true, // or false, depending on your environment
+		SameSite: "Lax",
+		Path:     "/", // match your original cookie Path
+	})
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Logged out successfully",
 	})
 }

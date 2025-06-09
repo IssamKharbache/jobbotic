@@ -11,6 +11,6 @@ func SetupUserRoutes(router fiber.Router) {
 	//user group route
 	users := router.Group("/users", middleware.RequireAuth)
 
-	users.Get("/", handlers.GetUsers)
+	users.Get("/user/get", handlers.GetUserData)
 
 }

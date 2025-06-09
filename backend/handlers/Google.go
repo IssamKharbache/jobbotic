@@ -18,15 +18,19 @@ import (
 )
 
 func GoogleLogin(c *fiber.Ctx) error {
-	state := utils.GenerateState() // Generate a random state for CSRF protection
-	url := GetGoogleOauthConfig().AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"))
-	return c.Redirect(url)
-}
+	state := utils.GenerateState()
+	redirectURL := os.Getenv("GOOGLE_REDIRECT_URL")
 
-// OAuth config
-func GetGoogleOauthConfig() *oauth2.Config {
+	url := GetGoogleOauthConfig(redirectURL).AuthCodeURL(state,
+		oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("prompt", "consent"),
+	)
+
+	return c.JSON(fiber.Map{"url": url})
+}
+func GetGoogleOauthConfig(redirectURL string) *oauth2.Config {
 	return &oauth2.Config{
-		RedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
+		RedirectURL:  redirectURL,
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		Scopes: []string{
@@ -41,30 +45,15 @@ func GetGoogleOauthConfig() *oauth2.Config {
 // Google Signup/Login Callback
 func GoogleCallback(c *fiber.Ctx) error {
 	// Decode base64 state (containing JWT)
-	stateParam := c.Query("state")
-	if stateParam == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Missing state parameter"})
-	}
-
-	decodedState, err := base64.StdEncoding.DecodeString(stateParam)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid state encoding"})
-	}
-
-	var stateData struct {
-		Token string `json:"token"`
-	}
-	if err := json.Unmarshal(decodedState, &stateData); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid state format"})
-	}
+	redirectURL := os.Getenv("GOOGLE_REDIRECT_URL")
 
 	code := c.Query("code")
-	token, err := GetGoogleOauthConfig().Exchange(context.Background(), code)
+	token, err := GetGoogleOauthConfig(redirectURL).Exchange(context.Background(), code)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to exchange code"})
 	}
 
-	client := GetGoogleOauthConfig().Client(context.Background(), token)
+	client := GetGoogleOauthConfig(redirectURL).Client(context.Background(), token)
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get user info"})
@@ -115,15 +104,17 @@ func GoogleCallback(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate JWT"})
 	}
 
-	return c.JSON(fiber.Map{
-		"token": jwtToken,
-		"user": fiber.Map{
-			"id":         user.ID,
-			"first_name": user.FirstName,
-			"last_name":  user.LastName,
-			"email":      user.Email,
-		},
+	isProduction := os.Getenv("ENV") == "production"
+	c.Cookie(&fiber.Cookie{
+		Name:     "token",
+		Value:    jwtToken,
+		HTTPOnly: true,
+		Secure:   isProduction,
+		SameSite: "Lax",
+		Path:     "/",
+		Expires:  time.Now().Add(72 * time.Hour),
 	})
+	return c.Redirect(os.Getenv("FRONTEND_URL"))
 }
 
 // Generate Gmail Link URL
@@ -136,7 +127,8 @@ func GoogleLink(c *fiber.Ctx) error {
 		})
 	}
 	state := utils.GenerateStateWithUserID(userID)
-	authURL := GetGoogleOauthConfig().AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"))
+	redirectURL := os.Getenv("GOOGLE_REDIRECT_URL_LINK")
+	authURL := GetGoogleOauthConfig(redirectURL).AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"))
 
 	return c.JSON(fiber.Map{
 		"url": authURL,
@@ -181,8 +173,9 @@ func GoogleLinkCallback(c *fiber.Ctx) error {
 		})
 	}
 
+	redirectURL := os.Getenv("GOOGLE_REDIRECT_URL_LINK")
+	token, err := GetGoogleOauthConfig(redirectURL).Exchange(context.Background(), code)
 	// Exchange code for token
-	token, err := GetGoogleOauthConfig().Exchange(context.Background(), code)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to exchange code for token",
@@ -190,7 +183,7 @@ func GoogleLinkCallback(c *fiber.Ctx) error {
 	}
 
 	// Fetch user's Gmail address
-	client := GetGoogleOauthConfig().Client(context.Background(), token)
+	client := GetGoogleOauthConfig(redirectURL).Client(context.Background(), token)
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil || resp.StatusCode != 200 {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -254,13 +247,14 @@ func GoogleLinkCallback(c *fiber.Ctx) error {
 		"message": "Gmail linked successfully",
 	})
 }
-
 func GetValidAccessToken(account *models.GmailAccount) (string, error) {
 	if time.Now().Before(account.TokenExpiry) {
 		return account.GoogleAccessToken, nil
 	}
 
-	config := GetGoogleOauthConfig()
+	redirectURL := os.Getenv("GOOGLE_REDIRECT_URL_LINK")
+	config := GetGoogleOauthConfig(redirectURL)
+
 	token := &oauth2.Token{
 		RefreshToken: account.GoogleRefreshToken,
 	}
@@ -277,7 +271,6 @@ func GetValidAccessToken(account *models.GmailAccount) (string, error) {
 
 	return newToken.AccessToken, nil
 }
-
 func TestAccessToken(c *fiber.Ctx) error {
 	userID := c.Params("id") // or get from auth session
 	var account models.GmailAccount

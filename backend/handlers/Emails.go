@@ -7,6 +7,7 @@ import (
 	"jobbotic-backend/models"
 	"jobbotic-backend/utils/emails"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -22,7 +23,6 @@ type FormattedEmail struct {
 }
 
 func FetchEmails(c *fiber.Ctx) error {
-	fmt.Println("Fetch emails handler triggered")
 	userID := c.Params("id")
 	if userID == "" {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "missing user id"})
@@ -42,7 +42,7 @@ func FetchEmails(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
 
-	config := GetGoogleOauthConfig()
+	config := GetGoogleOauthConfig(os.Getenv("GOOGLE_REDIRECT_URL"))
 	ts := config.TokenSource(ctx, token)
 	//refresh the token
 	newToken, err := ts.Token()
