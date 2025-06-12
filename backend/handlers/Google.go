@@ -23,7 +23,6 @@ func GoogleLogin(c *fiber.Ctx) error {
 
 	url := GetGoogleOauthConfig(redirectURL).AuthCodeURL(state,
 		oauth2.AccessTypeOffline,
-		oauth2.SetAuthURLParam("prompt", "consent"),
 	)
 
 	return c.JSON(fiber.Map{"url": url})
@@ -128,7 +127,7 @@ func GoogleLink(c *fiber.Ctx) error {
 	}
 	state := utils.GenerateStateWithUserID(userID)
 	redirectURL := os.Getenv("GOOGLE_REDIRECT_URL_LINK")
-	authURL := GetGoogleOauthConfig(redirectURL).AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"))
+	authURL := GetGoogleOauthConfig(redirectURL).AuthCodeURL(state, oauth2.AccessTypeOffline)
 
 	return c.JSON(fiber.Map{
 		"url": authURL,

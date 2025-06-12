@@ -1,6 +1,5 @@
 import Hero from "@/components/hero/Hero";
-
-const page = () => {
+const page = async () => {
     return (
         <div>
             <Hero />

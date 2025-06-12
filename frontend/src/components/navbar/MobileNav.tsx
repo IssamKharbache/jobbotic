@@ -4,11 +4,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { navbarLinks } from "./Navbar";
 import { FaInstagram } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
+import UserAvatar from "./UserAvatar";
 
 const MobileNav = () => {
+    const [hasMounted, setHasMounted] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
+
     // Close menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -34,12 +37,19 @@ const MobileNav = () => {
             document.body.style.overflow = "auto";
         };
     }, [isOpen]);
+    useEffect(() => {
+        setHasMounted(true);
+    }, []);
+
+    if (!hasMounted) return null;
+
     return (
-        <>
+        <div className="flex items-center gap-2 lg:hidden">
+            <UserAvatar />
             {/* Toggle Button */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="p-2 focus:outline-none block lg:hidden z-50 relative"
+                className="p-2 focus:outline-none  z-50 relative"
                 aria-label="Toggle menu"
             >
                 <svg
@@ -150,7 +160,7 @@ const MobileNav = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </>
+        </div>
     );
 };
 

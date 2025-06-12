@@ -3,6 +3,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import JobboticLogo from "../logos/JobboticLogo";
 import MobileNav from "./MobileNav";
+import { useUserStore } from "../../../store/UserStore";
+import UserAvatar from "./UserAvatar";
 
 export const navbarLinks = [
     { name: "Home", href: "/" },
@@ -15,6 +17,7 @@ export const navbarLinks = [
 
 const Navbar = () => {
     const pathname = usePathname();
+    const { user } = useUserStore();
     return (
         <nav className="flex h-24 items-center justify-between border py-5 px-7">
             <JobboticLogo />
@@ -81,15 +84,27 @@ const Navbar = () => {
             </div>
 
             <div className="hidden lg:flex items-center gap-6">
-                <Link
-                    href="/register"
-                    className="border border-black hover:bg-black hover:text-white duration-300 rounded-full py-3 px-6 cursor-pointer"
-                >
-                    Get started
-                </Link>
-                <Link href="/" className="text-gray-600 hover:text-gray-900">
-                    Sign in
-                </Link>
+                {user.id ? (
+                    <>
+                        <UserAvatar />
+                    </>
+                ) : (
+                    <>
+                        <Link
+                            href="/register"
+                            className="border border-black hover:bg-black hover:text-white duration-300 rounded-full py-3 px-6 cursor-pointer"
+                        >
+                            Get started
+                        </Link>
+
+                        <Link
+                            href="/sign-in"
+                            className="text-gray-600 hover:text-gray-900"
+                        >
+                            Sign in
+                        </Link>
+                    </>
+                )}
             </div>
             <MobileNav />
         </nav>

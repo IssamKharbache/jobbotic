@@ -3,6 +3,8 @@ import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import "../globals.css";
 import Navbar from "@/components/navbar/Navbar";
 import { Toaster } from "@/components/ui/sonner";
+import UserProvider from "@/components/providers/AuthProvider";
+import { cookies } from "next/headers";
 const geistSans = Geist({
     variable: "--font-geist-sans",
     subsets: ["latin"],
@@ -23,11 +25,13 @@ export const metadata: Metadata = {
         "Jobbotic is a smart job application tracker that connects to your Gmail to automatically detect and organize your job applications. Stay on top of your job hunt, get helpful insights, and avoid duplicate submissions.",
 };
 
-export default function InterfaceLayout({
+export default async function InterfaceLayout({
     children,
 }: Readonly<{
     children: React.ReactNode;
 }>) {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value || null;
     return (
         <html lang="en">
             <body
@@ -35,7 +39,9 @@ export default function InterfaceLayout({
             >
                 <Toaster position="top-right" />
                 <Navbar />
-                <div>{children}</div>
+                <UserProvider token={token || ""}>
+                    <div>{children}</div>
+                </UserProvider>
             </body>
         </html>
     );
